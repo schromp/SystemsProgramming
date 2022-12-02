@@ -1,0 +1,54 @@
+%edi = x
+%esi = y
+
+rsi = x
+rdi = y
+
+--
+
+rax = x
+
+shift rax by 4 -> why
+rax is now z for me
+
+rax = rax - rdi
+z = z - y
+
+rax = rsi + rax
+z = z + x
+
+rsi = (rsi + rsi * 4)
+x = x*4
+
+rsi = rdi + rsi * 2 
+x = y + x * 2
+
+edx = array1 + rsi * 4
+edx = array[x * 4]
+
+edx = array2 + rax * 4
+edx = array2[z*4]
+
+return edx
+
+
+
+---------
+
+rdi, rsi = input(x, y)  
+
+rax = rdi(x)
+rax = rax^4 -> bitshift rdi(x) * 4 -> (x= 0000.0001 -> 0001.0000) x^4
+
+rax = rax - rdi(x)
+rax = rax + rsi(y)
+
+rsi = rsi + rsi * 4
+rsi = rdi + rsi * 4
+
+
+-----
+
+input(5, 3) {
+  
+}
