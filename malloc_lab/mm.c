@@ -43,7 +43,8 @@ team_t team = {
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* get chunk pointer from payload */
-// TODO:
+#define GET_CHUNKPOINTER(payload_pointer)                                      \
+  ((void *)((unsigned *)payload_pointer) - 1)
 
 /* tagbit operations */
 #define GET_FREEBIT(header) (((unsigned)header) & 0b1)
@@ -55,6 +56,11 @@ team_t team = {
 // set the size in blocks
 #define SET_SIZEBIT(pointer, size)                                             \
   (*(unsigned *)pointer |= ((unsigned)size) << 0b1)
+
+/* get the setbit of the chunk after the payload. for easy access of nextchunk
+ * to this chunk */
+#define SET_SIZEBIT_AFTER_PAYLOAD(payloadptr, size)                            \
+  (*(((char *)payloadptr) + size) = size)
 
 /* set and get internal pointers */
 #define GET_NEXTBLOCK(pointer) *((void **)((unsigned *)pointer) + 1)
@@ -146,6 +152,7 @@ void *mm_malloc(size_t size) {
     }
   } else {
     SET_NOTFREE(&fit->header);
+    SET_SIZEBIT_AFTER_PAYLOAD(fit->payload, size);
     return fit->payload;
   }
 }
@@ -154,7 +161,31 @@ void *mm_malloc(size_t size) {
  * mm_free - Freeing a block does nothing.
  */
 void mm_free(void *ptr) {
-  // TODO: need a get function for the header from the view of the payload pointer
+  Chunk *chunk = GET_CHUNKPOINTER(ptr);
+
+  // coalescing if near to other free chunks
+  unsigned prev_size = *(((unsigned *)chunk) - 1);
+  Chunk *prev_chunk = (Chunk *)((char *)chunk - prev_size);
+
+  Chunk *next_chunk = (Chunk *)(((char *)chunk) + GET_SIZEBIT(chunk->header));
+
+  if (GET_FREEBIT(prev_chunk->header) == 0 &&
+      GET_FREEBIT(next_chunk->header) == 0) {
+    // if is free
+
+    prev_chunk->next_chunk = next_chunk;
+    next_chunk->prev_chunk = prev_chunk;
+
+    unsigned new_size =
+        GET_SIZEBIT(prev_chunk->header) + GET_SIZEBIT(chunk->header);
+
+    SET_SIZEBIT(prev_chunk, new_size);
+    SET_SIZEBIT_AFTER_PAYLOAD(prev_chunk->payload, new_size);
+  }
+
+  // after bin implementation: place chunk in unsorted list
+
+  SET_ISFREE(chunk);
 }
 
 /*
@@ -177,4 +208,9 @@ void *mm_realloc(void *ptr, size_t size) {
   memcpy(newptr, oldptr, copySize);
   mm_free(oldptr);
   return newptr;
+}
+
+void heap_check() {
+
+  // loop from start to end check if adress at end is the same as
 }

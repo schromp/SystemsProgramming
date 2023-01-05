@@ -48,7 +48,6 @@ Goal: print the line where checker was called
 How can I check that the Heap is correct?
 Depends on the implementation of the heap datastructure
 
-
 ### Implicit List
  - Go through block by block and look at the size. 
  - Step to next block using the size
