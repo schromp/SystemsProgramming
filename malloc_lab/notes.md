@@ -2,35 +2,9 @@
 
 ## Things to keep in mind
 
- - Use Macros and inline functions in order to speed up program and get more throughput
- - check pointer casting thoroughly
- - there will be no real structs for the heap and heap blocks because the datastructure is stored directly into memory
-   -  Exception: There might be a way to utilize structs to access memory easier (example next and before pointer)
-   -  Macros will be better suited for this, maybe
- - Do I have to initialiaze multiple blocks on start or just one?
-   - initialize list with a minimum amount of blocks (maybe not needed) and add blocks using sbrk later
-
-## Data Structure
-
-Maybe store some heap information on start of heap (size)
-
-Header with free bit and size of allocated memory
-If free bit equals 1 then store pointers to the next and the before free element
-  if block is the first or last one in heap it points to null
-Data after headerbit has to be aligned properly
-
-Sizes:
-  Header size = unsigned int
-  free header size = unsigned int + pointer + pointer = 4 Byte + 8 Byte + 8 Byte = 20 Byte
-  
-  pointer take up atleast a block(depending on alignment - 2 for alignment(4) and 1 for alignment(8))
-  size needed in free is: 16byte(2 or 4 blocks)
-
-### Implicit List
-
-Using only size of allocated memory to find next spot in memory
-Problem: when freeing the values coalescing behind is hard. This leads to fragmentation
-Solution: Bidirectional coalescing. Store the size of block at end
+- Do I have to initialiaze multiple blocks on start or just one?
+ - initialize list with a minimum amount of blocks (maybe not needed) and add blocks using sbrk later
+- Check alignment methods
 
 ### Explicit List
 
@@ -48,14 +22,71 @@ Goal: print the line where checker was called
 How can I check that the Heap is correct?
 Depends on the implementation of the heap datastructure
 
-### Implicit List
- - Go through block by block and look at the size. 
- - Step to next block using the size
- - Incase of wrong size values(not aligned or 0) heap incorrect
- - Have to get to the end of the heap. If not there has been an error
+- repeat steps of implicit list
+- also check if all free blocks point to other free blocks
+ - additonaly check if the last pointer actually points to the last element
 
-### Explicit List
- - repeat steps of implicit list
- - also check if all free blocks point to other free blocks
-   - additonaly check if the last pointer actually points to the last element
+## Data Structures 
+
+Non free block:
+
+---------------
+- Size | free - 
+---------------
+-   Payload   -
+---------------
+- Size | free - 
+---------------
+
+Free block:
+
+---------------
+- Size | free - 
+---------------
+-  next_free  -
+---------------
+-  prev_free  -
+---------------
+-   ununsed   -
+---------------
+- Size | free - 
+---------------
+
+first block in the heap has prevsize 0
+
+Last block in the Heap has to have Sizebit set to 0
+next_free and prev_free have to be cirucularly linked in the end
+
+
+### Struct(easy access to Metadata)
+
+Starts at chunk minus sizeof(unsigned)
+
+Non free chunk:
+
+  prev_size
+  size
+  payload
+  
+free chunk:
+  
+  prev_size
+  size
+  next_free
+  prev_free
+
+## Free list implementation
+
+global first_free pointer
+doubly linked list ordered in memory
+
+### inserting into freelist
+
+1. set to free
+2. go backwards until a free block is found
+  a. Set next of found block to current
+  b. If not found: set current next to FIRST_FREE and set FIRST_FREE to current and current prev to NULL
+3. go forwards until a free block is found
+  a.Set prev of found block to current
+  b. If not found: set current next to NULL
 
