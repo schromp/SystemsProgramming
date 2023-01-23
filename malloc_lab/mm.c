@@ -82,19 +82,15 @@ struct FreeChunk {
  */
 static Chunk *START;
 static Chunk *END;
-// static FreeChunk *FIRST_FREE;
-// static FreeChunk *LAST_FREE;
 
 // defined as global variable because this is being calculated often and stays
 // the same
-static unsigned MIN_CHUNKSIZE = (sizeof(unsigned) * 2) + (sizeof(char *) * 2);
-
+static unsigned MIN_CHUNKSIZE = (sizeof(unsigned) * 2) + ((sizeof(char *)) * 2);
 
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
 
-#define WORDSZ 4
-#define DWORDSZ 8
+#define WORDSZ 8
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~0x7)
@@ -106,7 +102,7 @@ static unsigned MIN_CHUNKSIZE = (sizeof(unsigned) * 2) + (sizeof(char *) * 2);
  * IMPORTANT: Check if bigger than CHUNKMINSIZE
  */
 #define CALC_CHUNK_SIZE(payloadsize)                                           \
-  (((unsigned)ALIGN(payloadsize)) + ((unsigned)(sizeof(unsigned) * 2)))
+  (((unsigned)(ALIGN(payloadsize))) + ((unsigned)(sizeof(unsigned) * 2)))
 
 /* calculate the payloadsize from size including overhead */
 #define PAYLOADSIZE_FROM_CHUNKSIZE(chunksize)                                  \
@@ -115,7 +111,6 @@ static unsigned MIN_CHUNKSIZE = (sizeof(unsigned) * 2) + (sizeof(char *) * 2);
 /* get pointer to header of chunk from payload pointer */
 #define PAYLOAD_TO_CHUNKPTR(payload_pointer)                                   \
   ((void *)((unsigned *)payload_pointer) - 1)
-
 
 /* get pointer of type chunk from payload pointer */
 #define PAYLOAD_TO_CHUNKSTRUCT_PTR(payload_pointer)                            \
@@ -137,7 +132,7 @@ static unsigned MIN_CHUNKSIZE = (sizeof(unsigned) * 2) + (sizeof(char *) * 2);
 /* sets the freebit to 1 */
 #define SET_NOTFREE(header) (header |= 0b1)
 
-// set the size of chunk 
+// set the size of chunk
 #define SET_SIZEBIT(header, size) (header |= ((unsigned)size) << 0b1)
 
 /*
@@ -153,12 +148,6 @@ static unsigned MIN_CHUNKSIZE = (sizeof(unsigned) * 2) + (sizeof(char *) * 2);
 #define JUMP_PREV_CHUNK(chunkptr)                                              \
   (((unsigned *)((char *)chunkptr) - GET_SIZEBIT(*(unsigned *)chunkptr - 1)) + \
    1)
-
-/*
- * ---------------------------------
- * Convenience functions for coding
- * ---------------------------------
- */
 
 /* set the size of block - abstracted */
 static inline void set_size(unsigned *header, unsigned payload_size) {
@@ -207,13 +196,16 @@ int mm_check(int line_num);
 
 /*
  * mm_init - initialize the malloc package.
+ * initialises start and end pointer
+ * puts 1 freeblock and the end guard block
+ * freeblock pointers point to itself (circular list)
  */
 int mm_init(void) {
 
   int size_of_first_chunk = MIN_CHUNKSIZE;
   int size_of_last_chunk = sizeof(Chunk);
 
-  void *heap = mem_sbrk(size_of_first_chunk + size_of_last_chunk);
+  void *heap = mem_sbrk(size_of_first_chunk + size_of_last_chunk + 8);
 
   // Check if sbrk was successfull
   if (heap == (void *)-1) {
@@ -243,6 +235,12 @@ int mm_init(void) {
   return 0;
 }
 
+/*
+ * first fit algorithm for malloc
+ * finds the first chunk that is big enough for size
+ *
+ * Null if not found
+ */
 FreeChunk *first_fit(size_t size) {
 
 #ifdef CHECKHEAP
@@ -280,8 +278,8 @@ FreeChunk *first_fit(size_t size) {
  * mm_malloc - Allocate a block by incrementing the brk pointer.
  *     Always allocate a block whose size is a multiple of the alignment.
  *
- * try to insert if there is space - first fit
- * if no space grow heap
+ * if no free chunk is available for this -> ask for more memory from system
+ * if free chunk is available -> try to split the chunk and repair the freelist
  */
 void *mm_malloc(size_t size) {
 
@@ -342,10 +340,13 @@ void *mm_malloc(size_t size) {
       SET_FOOTER(fit, fit->header);
     }
 
-    return &fit->payload;
+    return (void *)(((unsigned *)fit) + 1);
   }
 }
 
+/*
+ * coalesces two chunks of memory and repairs the linked list
+ */
 inline void coalesc(FreeChunk *first, FreeChunk *second) {
 
 #ifdef CHECKHEAP
@@ -366,7 +367,10 @@ inline void coalesc(FreeChunk *first, FreeChunk *second) {
 }
 
 /*
- * mm_free - Freeing a block does nothing.
+ * mm_free
+ *
+ * inserts the block into freelist at the first found freeblock
+ * checks if coalescing is possible and calls coalesc function
  */
 void mm_free(void *ptr) {
 
@@ -449,6 +453,9 @@ void *mm_realloc(void *ptr, size_t size) {
   return newptr;
 }
 
+/*
+ * function to print a chunk
+ */
 void print_chunk(Chunk c) {
   unsigned footer = JUMP_NEXT_FROM_STRUCT(&c)->prev_size;
   printf("Chunk:\nsize: %u\nfree: %u\nfsize: %u\nffree: %u",
@@ -456,6 +463,14 @@ void print_chunk(Chunk c) {
          GET_FREEBIT(footer));
 }
 
+/*
+ * checks the heap with:
+ *
+ * is the heapsize the same as the system given heapsize?
+ * does traversing the heap using the size end at the correct end?
+ * are elements in free list actually free?
+ *
+ */
 int mm_check(int line_num) {
 
   int was_error = 0;
@@ -469,6 +484,9 @@ int mm_check(int line_num) {
 
   while (GET_SIZEBIT(current->header) != 0) {
     // printf("size: %u\n", GET_SIZEBIT(current->header));
+    if (current > (Chunk *)mem_heap_hi()) {
+      printf("Line %d: Chunk is outside of heap\n", line_num);
+    }
     current = JUMP_NEXT_FROM_STRUCT(current);
     size += GET_SIZEBIT(current->header);
   }
